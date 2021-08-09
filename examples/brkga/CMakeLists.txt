@@ -1,0 +1,5 @@
+add_executable(brkga_ackley ackley.cpp)
+target_link_libraries(brkga_ackley PRIVATE evo_alg)
+target_compile_features(brkga_ackley PRIVATE cxx_std_17)
+target_compile_options(brkga_ackley PRIVATE ${CXX_FLAGS})
+set_target_properties(brkga_ackley PROPERTIES OUTPUT_NAME ackley)

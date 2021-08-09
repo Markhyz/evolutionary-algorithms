@@ -1,0 +1,9 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+NamespaceIndentation: All
+PointerAlignment: Left
+FixNamespaceComments: false
+ColumnLimit: 120
+AllowShortFunctionsOnASingleLine: None
+AlwaysBreakTemplateDeclarations: Yes
+SpaceAfterCStyleCast: true
