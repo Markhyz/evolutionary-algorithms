@@ -86,12 +86,12 @@ namespace evo_alg {
                 if (diversified_individuals.size() < elite_size) {
                     Individual<GeneType> const& ind_1 = decoded_population[sorted_individuals[index]];
                     bool good = true;
+#pragma omp parallel for
                     for (size_t index_2 = 0; index_2 < diversified_individuals.size(); ++index_2) {
                         Individual<GeneType> const& ind_2 = decoded_population[diversified_individuals[index_2]];
                         double const distance = ind_1.getEuclidianDistance(ind_2);
                         if (distance < diversity_threshold) {
                             good = false;
-                            break;
                         }
                     }
                     if (good || allow_bad) {
@@ -197,6 +197,7 @@ namespace evo_alg {
                 new_population.evaluateFitness();
                 timer.stopTimer("fitness_time");
 
+#pragma omp parallel for
                 for (size_t index = 0; index < pop_size; ++index) {
                     population[index].setChromosome(new_population[index].getChromosome());
                     population[index].setFitnessValue(new_population[index].getFitnessValue());
@@ -210,8 +211,10 @@ namespace evo_alg {
                 double const mean_fitness = population.getMeanFitness(mut_size);
                 mean_fit.push_back(mean_fitness);
 
-                double const diver = decoded_population.getPairwiseDiversity(mut_size);
+                timer.startTimer("diver");
+                double const diver = 0; // decoded_population.getPairwiseDiversity(mut_size);
                 diversity.push_back(diver);
+                timer.stopTimer("diver");
 
                 timer.stopTimer("it_time");
 
@@ -221,8 +224,9 @@ namespace evo_alg {
                         "%.2f | dt: %.2f | de: %.2f\n",
                         it, best_fitness, mean_fitness, diver, config.elite_fraction, config.mut_fraction,
                         config.elite_cross_pr, config.diversity_threshold, config.diversity_enforcement);
-                    printf("%*s it: %.0fms | gen: %.0fms | eval: %.0fms\n", 7 + (int) ceil(log10(it ? it : 1)), "",
-                           timer.getTime("it_time"), timer.getTime("gen_time"), timer.getTime("fitness_time"));
+                    printf("%*s it: %.0fms | gen: %.0fms | diver: %.0fms | eval: %.0fms\n",
+                           7 + (int) ceil(log10(it ? it : 1)), "", timer.getTime("it_time"), timer.getTime("gen_time"),
+                           timer.getTime("diver"), timer.getTime("fitness_time"));
                 }
 
                 if (config.update_fn)
