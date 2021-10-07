@@ -16,6 +16,9 @@
 
 namespace evo_alg {
     template <class IndividualType>
+    using diversity_function_t = std::function<double(std::vector<IndividualType> const&, size_t const, size_t const)>;
+
+    template <class IndividualType>
     class Population {
       public:
         POINTER_ALIAS(Population)
@@ -40,7 +43,11 @@ namespace evo_alg {
 
         double getBestFitness() const;
         double getMeanFitness(size_t const start = 0, size_t end = 0) const;
-        double getPairwiseDiversity(size_t const start = 0, size_t end = 0) const;
+        double getHypervolume(size_t const start = 0, size_t end = 0) const;
+        double getDiversity(
+            size_t const start = 0, size_t end = 0,
+            diversity_function_t<IndividualType> const diversity_fn = diversity_function_t<IndividualType>()) const;
+        double getPairwiseDiversity(size_t const start = 0, size_t const end = 0) const;
 
         IndividualType& operator[](size_t const index);
         IndividualType const& operator[](size_t const index) const;
@@ -150,11 +157,45 @@ namespace evo_alg {
     }
 
     template <class IndividualType>
-    double Population<IndividualType>::getPairwiseDiversity(size_t const start, size_t end) const {
-        using gene_type_t = typename std::tuple_element<0, typename IndividualType::gene_types>::type;
-
+    double Population<IndividualType>::getHypervolume(size_t const start, size_t end) const {
         if (end == 0)
             end = population_.size();
+
+        std::vector<fitness::FitnessValue> norm_pop_fitness;
+        for (size_t index = start; index < end; ++index) {
+            norm_pop_fitness.push_back(population_[index].getNormalizedFitnessValue());
+        }
+
+        std::vector<int8_t> const fitness_direction = this->population_[0].getFitnessFunction()->getDirection();
+        transform(norm_pop_fitness.begin(), norm_pop_fitness.end(), norm_pop_fitness.begin(),
+                  [&fitness_direction](fitness::FitnessValue const& fitness_value) {
+                      std::vector<double> new_fit;
+
+                      for (size_t obj_index = 0; obj_index < fitness_direction.size(); ++obj_index) {
+                          new_fit.push_back(fitness_direction[obj_index] == -1 ? 1.0 - fitness_value[obj_index]
+                                                                               : fitness_value[obj_index]);
+                      }
+
+                      return new_fit;
+                  });
+
+        double const hv = fitness::hypervolume(norm_pop_fitness);
+
+        return hv;
+    }
+
+    template <class IndividualType>
+    double Population<IndividualType>::getDiversity(size_t const start, size_t end,
+                                                    diversity_function_t<IndividualType> const diversity_fn) const {
+        if (end == 0)
+            end = population_.size();
+
+        return diversity_fn ? diversity_fn(population_, start, end) : getPairwiseDiversity(start, end);
+    }
+
+    template <class IndividualType>
+    double Population<IndividualType>::getPairwiseDiversity(size_t const start, size_t const end) const {
+        using gene_type_t = typename std::tuple_element<0, typename IndividualType::gene_types>::type;
 
         double diversity = 0;
 

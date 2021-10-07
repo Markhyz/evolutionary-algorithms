@@ -28,6 +28,7 @@ namespace evo_alg {
 
         typename FitnessFunction<GeneTypes...>::const_shared_ptr getFitnessFunction() const;
         typename fitness::FitnessValue const& getFitnessValue() const;
+        typename fitness::FitnessValue getNormalizedFitnessValue() const;
 
         template <size_t ChromosomeIndex = 0>
         std::vector<std::pair<types::NthType<ChromosomeIndex, GeneTypes...>,
@@ -74,6 +75,15 @@ namespace evo_alg {
         }
 
         return fitness_value_.value();
+    }
+
+    template <typename... GeneTypes>
+    typename fitness::FitnessValue Phenotype<GeneTypes...>::getNormalizedFitnessValue() const {
+        if (!fitness_value_.has_value()) {
+            throw UndefinedFitnessException();
+        }
+
+        return fitness_->normalize(fitness_value_.value());
     }
 
     template <typename... GeneTypes>

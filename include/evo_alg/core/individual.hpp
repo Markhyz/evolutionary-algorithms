@@ -28,6 +28,7 @@ namespace evo_alg {
 
         typename FitnessFunction<GeneTypes...>::const_shared_ptr getFitnessFunction() const;
         typename fitness::FitnessValue const& getFitnessValue() const;
+        typename fitness::FitnessValue getNormalizedFitnessValue() const;
 
         template <size_t ChromosomeIndex = 0>
         double getEuclidianDistance(Individual<GeneTypes...> const& target_ind) const;
@@ -84,6 +85,11 @@ namespace evo_alg {
     template <typename... GeneTypes>
     typename fitness::FitnessValue const& Individual<GeneTypes...>::getFitnessValue() const {
         return phenotype_.getFitnessValue();
+    }
+
+    template <typename... GeneTypes>
+    typename fitness::FitnessValue Individual<GeneTypes...>::getNormalizedFitnessValue() const {
+        return phenotype_.getNormalizedFitnessValue();
     }
 
     template <typename... GeneTypes>

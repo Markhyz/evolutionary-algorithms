@@ -21,14 +21,22 @@ namespace evo_alg {
             BrkgaFitness(size_t chromosome_size, typename FitnessType::const_shared_ptr fitness,
                          decoding_function_t decoder)
                 : FitnessFunction<real_gene_t>({chromosome_size, {0, 1}}), chromosome_size_(chromosome_size),
-                  fitness_(fitness->clone()), decoder_(decoder), dimension_(fitness->getDimension()){};
+                  fitness_(fitness->clone()), decoder_(decoder){};
 
             size_t getDimension() const override {
-                return dimension_;
+                return fitness_->getDimension();
+            }
+
+            vector<int8_t> getDirection() const override {
+                return fitness_->getDirection();
             }
 
             BrkgaFitness* clone() const override {
                 return new BrkgaFitness(chromosome_size_, fitness_, decoder_);
+            }
+
+            evo_alg::fitness::FitnessValue normalize(evo_alg::fitness::FitnessValue const& fitness_value) override {
+                return fitness_->normalize(fitness_value);
             }
 
             fitness::FitnessValue operator()(evo_alg::Genotype<real_gene_t> const& genotype) override {
@@ -43,10 +51,9 @@ namespace evo_alg {
             size_t chromosome_size_;
             typename FitnessType::shared_ptr fitness_;
             decoding_function_t decoder_;
-            size_t dimension_;
         };
 
-        template <class FitnessType>
+        template <class IndividualType, class FitnessType>
         struct config_t {
             config_t(){};
             config_t(size_t iteration_num, size_t pop_size, size_t chromosome_size, double elite_fraction,
@@ -71,11 +78,12 @@ namespace evo_alg {
             double convergence_threshold = NAN;
             std::vector<real_chromosome_t> initial_pop;
             std::function<void(config_t&, size_t)> update_fn;
+            evo_alg::diversity_function_t<IndividualType> diversity_fn;
         };
 
         template <class IndividualType, class FitnessType>
         std::tuple<Population<IndividualType>, std::vector<double>, std::vector<double>, std::vector<double>>
-        run(config_t<FitnessType> config) {
+        run(config_t<IndividualType, FitnessType> config) {
             size_t const iteration_num = config.iteration_num;
             size_t const pop_size = config.pop_size;
             size_t const chromosome_size = config.chromosome_size;
@@ -117,7 +125,7 @@ namespace evo_alg {
 
             best_fit.push_back(population.getBestFitness());
             mean_fit.push_back(population.getMeanFitness());
-            diversity.push_back(population.getPairwiseDiversity());
+            diversity.push_back(population.getDiversity(0, population.getSize(), config.diversity_fn));
 
             for (size_t it = 0; it < iteration_num; ++it) {
                 tt1 = std::chrono::high_resolution_clock::now();
@@ -191,7 +199,7 @@ namespace evo_alg {
                 double const mean_fitness = population.getMeanFitness(mut_size);
                 mean_fit.push_back(mean_fitness);
 
-                double const diver = population.getPairwiseDiversity(mut_size);
+                double const diver = population.getDiversity(mut_size);
                 diversity.push_back(diver);
 
                 tt2 = std::chrono::high_resolution_clock::now();
@@ -264,7 +272,7 @@ namespace evo_alg {
         template <class IndividualType, class FitnessType>
         std::tuple<Population<IndividualType>, Population<IndividualType>,
                    std::vector<std::tuple<std::vector<real_chromosome_t>, fitness::frontier_t>>, std::vector<double>>
-        runMultiObjective(config_t<FitnessType> config) {
+        runMultiObjective(config_t<IndividualType, FitnessType> config) {
             utils::Timer timer;
 
             size_t const iteration_num = config.iteration_num;
@@ -327,12 +335,12 @@ namespace evo_alg {
                 best_individuals_chromosome.push_back(archive[ind].getChromosome());
             }
             best_frontiers.emplace_back(best_individuals_chromosome, best_frontier);
-            diversity.push_back(population.getPairwiseDiversity());
 
             for (size_t index = 0; index < pop_size; ++index) {
                 decoded_population[index].setChromosome(decoder(population[index].getChromosome()));
                 decoded_population[index].setFitnessValue(population[index].getFitnessValue());
             }
+            diversity.push_back(decoded_population.getDiversity());
 
             for (size_t it = 1; it < iteration_num; ++it) {
                 timer.startTimer("it_time");
@@ -422,18 +430,22 @@ namespace evo_alg {
                     decoded_population[index].setFitnessValue(population[index].getFitnessValue());
                 }
 
-                double const diver = decoded_population.getPairwiseDiversity(mut_size);
+                timer.startTimer("diver_time");
+                double const diver =
+                    decoded_population.getDiversity(mut_size, decoded_population.getSize(), config.diversity_fn);
+                timer.stopTimer("diver_time");
+
                 diversity.push_back(diver);
 
                 timer.stopTimer("it_time");
 
                 if (config.log_step > 0 && it % config.log_step == 0) {
                     printf("Gen %lu -> best frontier size: %3lu | diversity: %.3f | e: %.2f | m: "
-                           "%.2f | c: %.2f | dt: %.2f | de: %.2f",
+                           "%.2f | c: %.2f | dt: %.2f | de: %.2f\n",
                            it, best_individuals_index.size(), diver, config.elite_fraction, config.mut_fraction,
                            config.elite_cross_pr, config.diversity_threshold, config.diversity_enforcement);
-                    printf(" || it: %.0fms | gen: %.0fms | eval: %.0fms\n", timer.getTime("it_time"),
-                           timer.getTime("gen_time"), timer.getTime("fitness_time"));
+                    printf("|| -> it: %.0fms | gen: %.0fms | eval: %.0fms | diver: %.0fms\n", timer.getTime("it_time"),
+                           timer.getTime("gen_time"), timer.getTime("fitness_time"), timer.getTime("diver_time"));
                 }
 
                 if (config.update_fn)

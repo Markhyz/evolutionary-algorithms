@@ -51,17 +51,18 @@ namespace evo_alg {
             return result;
         }
 
-        std::vector<double> crowdingDistance(std::vector<std::vector<size_t>> frontiers,
-                                             std::vector<FitnessValue> fitness_values) {
+        std::vector<double> crowdingDistance(std::vector<std::vector<size_t>> const& frontiers,
+                                             std::vector<FitnessValue> const& fitness_values) {
             std::vector<double> crowding_distance(fitness_values.size());
-            size_t fitness_dimension = fitness_values[0].getDimension();
-            for (std::vector<size_t>& frontier : frontiers) {
+            size_t const& fitness_dimension = fitness_values[0].getDimension();
+            for (std::vector<size_t> frontier : frontiers) {
                 for (size_t fit_index = 0; fit_index < fitness_dimension; ++fit_index) {
-                    sort(frontier.begin(), frontier.end(), [&fitness_values, &fit_index](size_t ind_1, size_t ind_2) {
-                        return fitness_values[ind_1][fit_index] < fitness_values[ind_2][fit_index];
-                    });
-                    double min_value = fitness_values[frontier.front()][fit_index];
-                    double max_value = fitness_values[frontier.back()][fit_index];
+                    sort(frontier.begin(), frontier.end(),
+                         [&fitness_values, &fit_index](size_t const& ind_1, size_t const& ind_2) {
+                             return fitness_values[ind_1][fit_index] < fitness_values[ind_2][fit_index];
+                         });
+                    double const min_value = fitness_values[frontier.front()][fit_index];
+                    double const max_value = fitness_values[frontier.back()][fit_index];
                     crowding_distance[frontier.front()] += 1e9;
                     crowding_distance[frontier.back()] += 1e9;
                     for (size_t ind_index = 1; ind_index < frontier.size() - 1; ++ind_index) {
@@ -148,6 +149,62 @@ namespace evo_alg {
             }
 
             return frontiers;
+        }
+
+        double hypervolume(std::vector<FitnessValue> const& normalized_population_fitness) {
+            size_t const dimension = normalized_population_fitness[0].getDimension();
+
+            std::vector<size_t> nd_indexes = nonDominatedSorting(normalized_population_fitness)[0];
+            std::vector<FitnessValue> nd_normalized_population_fitness(nd_indexes.size());
+            std::transform(
+                nd_indexes.begin(), nd_indexes.end(), nd_normalized_population_fitness.begin(),
+                [&normalized_population_fitness](size_t const& index) { return normalized_population_fitness[index]; });
+            std::sort(nd_normalized_population_fitness.rbegin(), nd_normalized_population_fitness.rend(),
+                      [](FitnessValue const& x, FitnessValue const& y) { return x[0] < y[0]; });
+            nd_normalized_population_fitness.push_back(std::vector<double>(dimension, 0.0));
+
+            double hv = 0.0;
+
+            if (dimension == 1) {
+                return nd_normalized_population_fitness[0][0];
+            } else if (dimension == 2) {
+                for (size_t index = 1; index < nd_normalized_population_fitness.size(); ++index) {
+                    double const dist =
+                        nd_normalized_population_fitness[index - 1][0] - nd_normalized_population_fitness[index][0];
+
+                    hv += dist * nd_normalized_population_fitness[index - 1][1];
+                }
+
+                return hv;
+            }
+
+            size_t slice_size = 1;
+            size_t differences = 0;
+            std::vector<FitnessValue> current_slice;
+
+            current_slice.push_back(FitnessValue({nd_normalized_population_fitness[0].getValues().begin() + 1,
+                                                  nd_normalized_population_fitness[0].getValues().end()}));
+            for (size_t cur_index = 1; cur_index < nd_normalized_population_fitness.size(); ++cur_index) {
+                if (!utils::numericEqual(nd_normalized_population_fitness[cur_index][0],
+                                         nd_normalized_population_fitness[cur_index - 1][0])) {
+                    ++differences;
+                }
+
+                if (differences == slice_size) {
+                    double const dist = nd_normalized_population_fitness[cur_index - 1][0] -
+                                        nd_normalized_population_fitness[cur_index][0];
+
+                    hv += dist * hypervolume(current_slice);
+
+                    ++slice_size;
+                }
+
+                current_slice.push_back(
+                    FitnessValue({nd_normalized_population_fitness[cur_index].getValues().begin() + 1,
+                                  nd_normalized_population_fitness[cur_index].getValues().end()}));
+            }
+
+            return hv;
         }
 
         FitnessValue::FitnessValue(){};

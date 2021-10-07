@@ -42,9 +42,11 @@ namespace evo_alg {
 
         using frontier_t = std::vector<FitnessValue>;
 
-        std::vector<double> crowdingDistance();
+        std::vector<double> crowdingDistance(std::vector<std::vector<size_t>> const& frontiers,
+                                             std::vector<FitnessValue> const& fitness_values);
         std::vector<std::vector<size_t>> nonDominatedSorting(std::vector<FitnessValue> const& fitness_values,
                                                              bool const crowding_sort = false);
+        double hypervolume(std::vector<FitnessValue> const& normalized_population_fitness);
     }
 
     template <typename... GeneTypes>
@@ -61,6 +63,7 @@ namespace evo_alg {
         virtual ~FitnessFunction() = default;
 
         virtual size_t getDimension() const = 0;
+        virtual std::vector<int8_t> getDirection() const = 0;
 
         template <size_t ChromosomeIndex = 0>
         std::vector<std::pair<types::NthType<ChromosomeIndex, GeneTypes...>,
@@ -79,6 +82,8 @@ namespace evo_alg {
                                  types::NthType<ChromosomeIndex, GeneTypes...>> const gene_bounds);
 
         virtual FitnessFunction* clone() const = 0;
+
+        virtual fitness::FitnessValue normalize(fitness::FitnessValue const& fitness_value) = 0;
 
         virtual fitness::FitnessValue operator()(Genotype<GeneTypes...> const& genotype) = 0;
 
