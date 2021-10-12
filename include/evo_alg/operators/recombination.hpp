@@ -3,8 +3,8 @@
 
 #include "../../../include/evo_alg/core.hpp"
 
-#include <utility>
 #include <functional>
+#include <utility>
 
 namespace evo_alg {
     namespace recombinator {
@@ -20,14 +20,18 @@ namespace evo_alg {
 
         template <class GeneType>
         void eliteUniform(Individual<GeneType> const& elite_parent, Individual<GeneType> const& non_elite_parent,
-                          Individual<GeneType>& child, double const elite_pr_lb) {
+                          Individual<GeneType>& child, double const elite_pr_lb, double elite_pr_ub = -1) {
             size_t const chromosome_size = elite_parent.getBounds().size();
+
+            if (elite_pr_ub < 0.0) {
+                elite_pr_ub = 1.0 - 1.0 / chromosome_size;
+            }
 
             std::vector<GeneType> elite_parent_chromosome = elite_parent.getChromosome();
             std::vector<GeneType> non_elite_parent_chromosome = non_elite_parent.getChromosome();
             std::vector<GeneType> child_chromosome = std::vector<GeneType>(chromosome_size);
 
-            std::uniform_real_distribution<double> prob_gen(elite_pr_lb, 1.0 - 1.0 / chromosome_size);
+            std::uniform_real_distribution<double> prob_gen(elite_pr_lb, elite_pr_ub);
             double const elite_pr = prob_gen(utils::rng);
             assert(elite_pr <= 1.0);
             for (size_t index = 0; index < chromosome_size; ++index) {
